@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -36,6 +36,8 @@ interface HistoryPoint {
   [chainId: string]: string | number;
 }
 
+type Metric = "cost" | "perDollar";
+
 const REFRESH_INTERVAL = 20_000;
 const MAX_HISTORY = 40;
 
@@ -55,29 +57,51 @@ function formatTickUsd(v: number): string {
   return `$${v.toExponential(0)}`;
 }
 
+function formatCount(v: number): string {
+  if (v === 0) return "0";
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  if (v >= 100) return v.toFixed(0);
+  if (v >= 1) return v.toFixed(1);
+  return v.toFixed(2);
+}
+
+function formatTickCount(v: number): string {
+  if (v >= 1e6) return `${(v / 1e6).toFixed(0)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(0)}K`;
+  if (v >= 1) return v.toFixed(0);
+  return v.toFixed(1);
+}
+
 interface BarPayloadEntry {
   name: string;
   value: number;
-  payload: ChainGasEntry & { fill: string };
+  payload: ChainGasEntry & { fill: string; displayValue: number };
 }
 
-function BarTooltip({ active, payload }: { active?: boolean; payload?: BarPayloadEntry[] }) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="bg-gray-950/95 backdrop-blur border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl text-sm">
-      <div className="flex items-center gap-2 mb-1.5">
-        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-        <span className="font-medium text-white">{d.name}</span>
+function makeBarTooltip(metric: Metric) {
+  return function BarTooltipContent({ active, payload }: { active?: boolean; payload?: BarPayloadEntry[] }) {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    const perDollar = metric === "perDollar";
+    return (
+      <div className="bg-gray-950/95 backdrop-blur border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl text-sm">
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+          <span className="font-medium text-white">{d.name}</span>
+        </div>
+        <div className="text-gray-300 font-mono">
+          {perDollar
+            ? `${formatCount(d.displayValue)} swaps / $1`
+            : formatUsd(d.swapCostUsd)}
+        </div>
+        <div className="text-gray-500 text-xs mt-1">
+          {perDollar && <span>{formatUsd(d.swapCostUsd)} per swap &middot; </span>}
+          {d.avgGwei < 0.01 ? d.avgGwei.toFixed(6) : d.avgGwei.toFixed(2)} {d.chainType === "solana" ? "μL/CU" : "Gwei"} &middot; {d.nativeTokenSymbol} @ ${d.tokenPrice.toFixed(2)}
+        </div>
       </div>
-      <div className="text-gray-300 font-mono">
-        {formatUsd(d.swapCostUsd)}
-      </div>
-      <div className="text-gray-500 text-xs mt-1">
-        {d.avgGwei < 0.01 ? d.avgGwei.toFixed(6) : d.avgGwei.toFixed(2)} {d.chainType === "solana" ? "μL/CU" : "Gwei"} &middot; {d.nativeTokenSymbol} @ ${d.tokenPrice.toFixed(2)}
-      </div>
-    </div>
-  );
+    );
+  };
 }
 
 interface LinePayloadEntry {
@@ -87,23 +111,26 @@ interface LinePayloadEntry {
   dataKey: string;
 }
 
-function LineTooltip({ active, payload, label }: { active?: boolean; payload?: LinePayloadEntry[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
-  return (
-    <div className="bg-gray-950/95 backdrop-blur border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl text-xs max-h-72 overflow-y-auto">
-      <p className="text-gray-500 mb-2 text-[11px]">{label}</p>
-      {sorted.map((entry) => (
-        <div key={entry.dataKey} className="flex items-center gap-2 py-px">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
-          <span className="text-gray-400 truncate min-w-0">{entry.name}</span>
-          <span className="font-mono text-white ml-auto pl-3">
-            {formatUsd(entry.value)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
+function makeLineTooltip(metric: Metric) {
+  return function LineTooltipContent({ active, payload, label }: { active?: boolean; payload?: LinePayloadEntry[]; label?: string }) {
+    if (!active || !payload?.length) return null;
+    const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
+    const perDollar = metric === "perDollar";
+    return (
+      <div className="bg-gray-950/95 backdrop-blur border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl text-xs max-h-72 overflow-y-auto">
+        <p className="text-gray-500 mb-2 text-[11px]">{label}</p>
+        {sorted.map((entry) => (
+          <div key={entry.dataKey} className="flex items-center gap-2 py-px">
+            <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
+            <span className="text-gray-400 truncate min-w-0">{entry.name}</span>
+            <span className="font-mono text-white ml-auto pl-3">
+              {perDollar ? formatCount(entry.value) : formatUsd(entry.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
 }
 
 export default function AllChainsSwapChart() {
@@ -111,6 +138,7 @@ export default function AllChainsSwapChart() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"bar" | "line">("bar");
   const [axisScale, setAxisScale] = useState<"log" | "linear">("log");
+  const [metric, setMetric] = useState<Metric>("cost");
   const historyRef = useRef<HistoryPoint[]>([]);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const chainColorsRef = useRef<Record<string, string>>({});
@@ -118,6 +146,9 @@ export default function AllChainsSwapChart() {
   // failures don't remove chains from the UI
   const chainMapRef = useRef<Record<string, ChainGasEntry>>({});
   const chainNamesRef = useRef<Record<string, string>>({});
+
+  const BarTooltipComponent = useMemo(() => makeBarTooltip(metric), [metric]);
+  const LineTooltipComponent = useMemo(() => makeLineTooltip(metric), [metric]);
 
   // Load historical data from DB on mount
   const historyLoaded = useRef(false);
@@ -190,19 +221,52 @@ export default function AllChainsSwapChart() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  const barData = [...latestData]
-    .sort((a, b) => b.swapCostUsd - a.swapCostUsd)
-    .map((c) => ({ ...c, swapCostUsd: Math.max(c.swapCostUsd, 1e-12), fill: c.color }));
+  const isPerDollar = metric === "perDollar";
+
+  const barData = useMemo(() => {
+    const sorted = [...latestData].sort((a, b) =>
+      isPerDollar
+        ? a.swapCostUsd - b.swapCostUsd // cheapest first = most swaps = biggest bar at top
+        : b.swapCostUsd - a.swapCostUsd
+    );
+    return sorted.map((c) => {
+      const cost = Math.max(c.swapCostUsd, 1e-12);
+      return {
+        ...c,
+        swapCostUsd: cost,
+        displayValue: isPerDollar ? 1 / cost : cost,
+        fill: c.color,
+      };
+    });
+  }, [latestData, isPerDollar]);
+
+  const displayHistory = useMemo(() => {
+    if (!isPerDollar) return history;
+    return history.map((point) => {
+      const transformed: HistoryPoint = { time: point.time, timestamp: point.timestamp as number };
+      for (const [key, val] of Object.entries(point)) {
+        if (key === "time" || key === "timestamp") continue;
+        const num = typeof val === "number" ? val : parseFloat(val as string);
+        transformed[key] = num > 0 ? 1 / num : 0;
+      }
+      return transformed;
+    });
+  }, [history, isPerDollar]);
 
   // Set domain floor 100x below smallest value so every bar is visible on log scale
-  const minSwap = barData.length > 0
-    ? Math.min(...barData.map((c) => c.swapCostUsd))
+  const minDisplay = barData.length > 0
+    ? Math.min(...barData.map((c) => c.displayValue))
     : 1e-12;
-  const barDomainMin = minSwap / 100;
+  const barDomainMin = minDisplay / 100;
 
   // Use all ever-seen chains so lines don't vanish on intermittent RPC failures
   const chainIds = Object.keys(chainMapRef.current);
   const barHeight = Math.max(400, barData.length * 32);
+
+  const tickFormatter = isPerDollar ? formatTickCount : formatTickUsd;
+  const subtitle = isPerDollar
+    ? "DEX swaps per $1 of gas"
+    : "DEX swap cost in USD";
 
   return (
     <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-5 sm:p-6">
@@ -213,10 +277,23 @@ export default function AllChainsSwapChart() {
             Swap Fee Comparison
           </h3>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            DEX swap cost in USD &middot; {axisScale} scale
+            {subtitle} &middot; {axisScale} scale
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
+            {(["cost", "perDollar"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setMetric(m)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                  metric === m ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {m === "cost" ? "Cost" : "Swaps/$1"}
+              </button>
+            ))}
+          </div>
           <div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
             {(["log", "linear"] as const).map((s) => (
               <button
@@ -265,7 +342,7 @@ export default function AllChainsSwapChart() {
                 tick={{ fill: "#6b7280", fontSize: 10 }}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={formatTickUsd}
+                tickFormatter={tickFormatter}
               />
               <YAxis
                 type="category"
@@ -275,8 +352,8 @@ export default function AllChainsSwapChart() {
                 axisLine={false}
                 width={80}
               />
-              <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(255,255,255,0.02)" }} />
-              <Bar dataKey="swapCostUsd" radius={[0, 4, 4, 0]} barSize={18} />
+              <Tooltip content={<BarTooltipComponent />} cursor={{ fill: "rgba(255,255,255,0.02)" }} />
+              <Bar dataKey="displayValue" radius={[0, 4, 4, 0]} barSize={18} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -287,13 +364,13 @@ export default function AllChainsSwapChart() {
               <p className="text-sm text-gray-400 animate-pulse">Loading gas prices...</p>
             </div>
           )}
-          {history.length < 2 ? (
+          {displayHistory.length < 2 ? (
             <div className="h-full flex items-center justify-center text-gray-600 text-sm">
-              {loading ? "" : `Collecting data... (${history.length}/2)`}
+              {loading ? "" : `Collecting data... (${displayHistory.length}/2)`}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={history} margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
+              <LineChart data={displayHistory} margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
                 <XAxis
                   dataKey="time"
@@ -308,10 +385,10 @@ export default function AllChainsSwapChart() {
                   tick={{ fill: "#6b7280", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={formatTickUsd}
+                  tickFormatter={tickFormatter}
                   width={56}
                 />
-                <Tooltip content={<LineTooltip />} />
+                <Tooltip content={<LineTooltipComponent />} />
                 <Legend iconType="circle" iconSize={7} />
                 {chainIds.map((chainId) => (
                   <Line
@@ -335,7 +412,7 @@ export default function AllChainsSwapChart() {
       <div className="mt-4 pt-4 border-t border-white/[0.04]">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5">
           {[...latestData]
-            .sort((a, b) => a.swapCostUsd - b.swapCostUsd)
+            .sort((a, b) => isPerDollar ? a.swapCostUsd - b.swapCostUsd : a.swapCostUsd - b.swapCostUsd)
             .map((c) => (
               <div
                 key={c.chain}
@@ -344,7 +421,9 @@ export default function AllChainsSwapChart() {
                 <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
                 <span className="text-gray-500 truncate">{c.name}</span>
                 <span className="text-gray-300 font-mono ml-auto">
-                  {formatUsd(c.swapCostUsd)}
+                  {isPerDollar
+                    ? `${formatCount(1 / Math.max(c.swapCostUsd, 1e-12))}`
+                    : formatUsd(c.swapCostUsd)}
                 </span>
               </div>
             ))}
