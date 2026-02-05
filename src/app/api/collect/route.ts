@@ -1,10 +1,19 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { fetchAllChainsGas } from "@/lib/gas-fetcher";
 import { insertGasData } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const secret = process.env.CRON_SECRET;
+  if (secret) {
+    const provided =
+      request.headers.get("authorization")?.replace("Bearer ", "") ||
+      request.nextUrl.searchParams.get("key");
+    if (provided !== secret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
   try {
     const result = await fetchAllChainsGas();
 
