@@ -16,7 +16,7 @@ export async function GET() {
       timestamp: result.timestamp,
     }));
 
-    insertGasData(rows);
+    await insertGasData(rows);
 
     return NextResponse.json({
       ok: true,

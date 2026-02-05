@@ -1,30 +1,31 @@
-import Database from "better-sqlite3";
-import path from "path";
+import { neon } from "@neondatabase/serverless";
 
-let db: Database.Database | null = null;
+function getSQL() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL env var is not set");
+  return neon(url);
+}
 
-function getDb(): Database.Database {
-  if (db) return db;
+let initialized = false;
 
-  const dbPath = path.join(process.cwd(), "gaspass.db");
-  db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("busy_timeout = 5000");
-
-  db.exec(`
+async function ensureTable() {
+  if (initialized) return;
+  const sql = getSQL();
+  await sql`
     CREATE TABLE IF NOT EXISTS gas_history (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       chain TEXT NOT NULL,
-      avg_gwei REAL NOT NULL,
-      swap_cost_usd REAL NOT NULL,
-      token_price REAL NOT NULL,
+      avg_gwei DOUBLE PRECISION NOT NULL,
+      swap_cost_usd DOUBLE PRECISION NOT NULL,
+      token_price DOUBLE PRECISION NOT NULL,
       block_number INTEGER,
-      timestamp INTEGER NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_chain_ts ON gas_history(chain, timestamp);
-  `);
-
-  return db;
+      timestamp BIGINT NOT NULL
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS idx_chain_ts ON gas_history(chain, timestamp)
+  `;
+  initialized = true;
 }
 
 export interface GasHistoryRow {
@@ -37,7 +38,7 @@ export interface GasHistoryRow {
   timestamp: number;
 }
 
-export function insertGasData(
+export async function insertGasData(
   rows: {
     chain: string;
     avgGwei: number;
@@ -47,63 +48,54 @@ export function insertGasData(
     timestamp: number;
   }[]
 ) {
-  const database = getDb();
-  const stmt = database.prepare(
-    `INSERT INTO gas_history (chain, avg_gwei, swap_cost_usd, token_price, block_number, timestamp)
-     VALUES (@chain, @avgGwei, @swapCostUsd, @tokenPrice, @blockNumber, @timestamp)`
-  );
+  await ensureTable();
+  const sql = getSQL();
 
-  const insertMany = database.transaction(
-    (
-      items: {
-        chain: string;
-        avgGwei: number;
-        swapCostUsd: number;
-        tokenPrice: number;
-        blockNumber?: number;
-        timestamp: number;
-      }[]
-    ) => {
-      for (const item of items) {
-        stmt.run({
-          chain: item.chain,
-          avgGwei: item.avgGwei,
-          swapCostUsd: item.swapCostUsd,
-          tokenPrice: item.tokenPrice,
-          blockNumber: item.blockNumber ?? null,
-          timestamp: item.timestamp,
-        });
-      }
-    }
-  );
+  // Batch insert using unnest for efficiency
+  const chains = rows.map((r) => r.chain);
+  const avgGweis = rows.map((r) => r.avgGwei);
+  const swapCosts = rows.map((r) => r.swapCostUsd);
+  const tokenPrices = rows.map((r) => r.tokenPrice);
+  const blockNumbers = rows.map((r) => r.blockNumber ?? null);
+  const timestamps = rows.map((r) => r.timestamp);
 
-  insertMany(rows);
+  await sql`
+    INSERT INTO gas_history (chain, avg_gwei, swap_cost_usd, token_price, block_number, timestamp)
+    SELECT * FROM unnest(
+      ${chains}::text[],
+      ${avgGweis}::double precision[],
+      ${swapCosts}::double precision[],
+      ${tokenPrices}::double precision[],
+      ${blockNumbers}::integer[],
+      ${timestamps}::bigint[]
+    )
+  `;
 }
 
-export function queryAllChainsHistory(
+export async function queryAllChainsHistory(
   hours: number
-): { timestamp: number; chains: Record<string, number> }[] {
-  const database = getDb();
+): Promise<{ timestamp: number; chains: Record<string, number> }[]> {
+  await ensureTable();
+  const sql = getSQL();
   const since = Date.now() - hours * 3600_000;
 
-  const rows = database
-    .prepare(
-      `SELECT chain, avg_gwei, swap_cost_usd, token_price, timestamp
-       FROM gas_history
-       WHERE timestamp > ?
-       ORDER BY timestamp ASC`
-    )
-    .all(since) as GasHistoryRow[];
+  const rows = await sql`
+    SELECT chain, swap_cost_usd, timestamp
+    FROM gas_history
+    WHERE timestamp > ${since}
+    ORDER BY timestamp ASC
+  ` as GasHistoryRow[];
 
   if (rows.length === 0) return [];
 
   // Group by timestamp (rows inserted together share the same timestamp)
   const grouped = new Map<number, Record<string, number>>();
   for (const row of rows) {
-    let entry = grouped.get(row.timestamp);
+    const ts = Number(row.timestamp);
+    let entry = grouped.get(ts);
     if (!entry) {
       entry = {};
-      grouped.set(row.timestamp, entry);
+      grouped.set(ts, entry);
     }
     entry[row.chain] = row.swap_cost_usd;
   }
@@ -122,27 +114,26 @@ export function queryAllChainsHistory(
   return points;
 }
 
-export function queryChainHistory(
+export async function queryChainHistory(
   chain: string,
   hours: number
-): { timestamp: number; low: number; average: number; high: number }[] {
-  const database = getDb();
+): Promise<{ timestamp: number; low: number; average: number; high: number }[]> {
+  await ensureTable();
+  const sql = getSQL();
   const since = Date.now() - hours * 3600_000;
 
-  const rows = database
-    .prepare(
-      `SELECT avg_gwei, swap_cost_usd, token_price, timestamp
-       FROM gas_history
-       WHERE chain = ? AND timestamp > ?
-       ORDER BY timestamp ASC`
-    )
-    .all(chain, since) as GasHistoryRow[];
+  const rows = await sql`
+    SELECT avg_gwei, timestamp
+    FROM gas_history
+    WHERE chain = ${chain} AND timestamp > ${since}
+    ORDER BY timestamp ASC
+  ` as GasHistoryRow[];
 
   if (rows.length === 0) return [];
 
-  // We only store avg_gwei; approximate low/high as ±15% like the fallback in gas/route.ts
+  // We only store avg_gwei; approximate low/high as ±15%
   let points = rows.map((row) => ({
-    timestamp: row.timestamp,
+    timestamp: Number(row.timestamp),
     low: row.avg_gwei * 0.85,
     average: row.avg_gwei,
     high: row.avg_gwei * 1.15,
