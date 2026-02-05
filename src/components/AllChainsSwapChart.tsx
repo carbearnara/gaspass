@@ -112,6 +112,10 @@ export default function AllChainsSwapChart() {
   const historyRef = useRef<HistoryPoint[]>([]);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const chainColorsRef = useRef<Record<string, string>>({});
+  // Accumulate all chain data — merge new fetches so intermittent RPC
+  // failures don't remove chains from the UI
+  const chainMapRef = useRef<Record<string, ChainGasEntry>>({});
+  const chainNamesRef = useRef<Record<string, string>>({});
 
   // Load historical data from DB on mount
   const historyLoaded = useRef(false);
@@ -151,11 +155,14 @@ export default function AllChainsSwapChart() {
       const res = await fetch("/api/gas-all");
       if (!res.ok) return;
       const data: AllChainsResponse = await res.json();
-      setLatestData(data.chains);
 
+      // Merge into accumulated map so chains survive intermittent RPC failures
       for (const c of data.chains) {
+        chainMapRef.current[c.chain] = c;
         chainColorsRef.current[c.chain] = c.color;
+        chainNamesRef.current[c.chain] = c.name;
       }
+      setLatestData(Object.values(chainMapRef.current));
 
       const now = new Date();
       const point: HistoryPoint = {
@@ -191,7 +198,8 @@ export default function AllChainsSwapChart() {
     : 1e-12;
   const barDomainMin = minSwap / 100;
 
-  const chainIds = latestData.map((c) => c.chain);
+  // Use all ever-seen chains so lines don't vanish on intermittent RPC failures
+  const chainIds = Object.keys(chainMapRef.current);
   const barHeight = Math.max(400, barData.length * 32);
 
   if (loading) {
@@ -295,7 +303,7 @@ export default function AllChainsSwapChart() {
                     stroke={chainColorsRef.current[chainId] || "#888"}
                     strokeWidth={1.5}
                     dot={false}
-                    name={latestData.find((c) => c.chain === chainId)?.name ?? chainId}
+                    name={chainNamesRef.current[chainId] ?? chainId}
                     connectNulls
                   />
                 ))}
