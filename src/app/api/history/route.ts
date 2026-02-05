@@ -11,10 +11,10 @@ export async function GET(request: NextRequest) {
   );
 
   if (chain === "all") {
-    const points = queryAllChainsHistory(hours);
+    const points = await queryAllChainsHistory(hours);
     return NextResponse.json({ points });
   }
 
-  const points = queryChainHistory(chain, hours);
+  const points = await queryChainHistory(chain, hours);
   return NextResponse.json({ points });
 }
