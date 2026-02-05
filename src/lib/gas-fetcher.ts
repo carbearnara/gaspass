@@ -6,7 +6,7 @@ export async function rpcCall(
   params: unknown[] = []
 ) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
+  const timeout = setTimeout(() => controller.abort(), 12000);
   try {
     const res = await fetch(rpcUrl, {
       method: "POST",
@@ -67,41 +67,52 @@ export async function fetchAllPrices(): Promise<Record<string, number>> {
   return priceCache;
 }
 
+async function fetchGasFromRpc(
+  rpcUrl: string,
+  isEIP1559: boolean
+): Promise<number> {
+  const gasPrice = await rpcCall(rpcUrl, "eth_gasPrice");
+  const gasPriceGwei = parseInt(gasPrice, 16) / 1e9;
+  let avgGwei = gasPriceGwei;
+
+  if (isEIP1559) {
+    try {
+      const feeHistory = await rpcCall(rpcUrl, "eth_feeHistory", [
+        "0xA",
+        "latest",
+        [50],
+      ]);
+      const baseFees = feeHistory.baseFeePerGas.map(
+        (f: string) => parseInt(f, 16) / 1e9
+      );
+      const tips = feeHistory.reward.map(
+        (r: string[]) => parseInt(r[0], 16) / 1e9
+      );
+      const latestBase = baseFees[baseFees.length - 1];
+      const avgTip =
+        tips.reduce((s: number, t: number) => s + t, 0) / tips.length;
+      const feeHistoryGwei = latestBase + avgTip;
+      avgGwei = Math.max(feeHistoryGwei, gasPriceGwei);
+    } catch {
+      // Use gasPrice fallback
+    }
+  }
+
+  return avgGwei;
+}
+
 export async function getChainGasGwei(
   chain: (typeof chains)[number]
 ): Promise<number | null> {
-  try {
-    const gasPrice = await rpcCall(chain.rpcUrl, "eth_gasPrice");
-    const gasPriceGwei = parseInt(gasPrice, 16) / 1e9;
-    let avgGwei = gasPriceGwei;
-
-    if (chain.isEIP1559) {
-      try {
-        const feeHistory = await rpcCall(chain.rpcUrl, "eth_feeHistory", [
-          "0xA",
-          "latest",
-          [50],
-        ]);
-        const baseFees = feeHistory.baseFeePerGas.map(
-          (f: string) => parseInt(f, 16) / 1e9
-        );
-        const tips = feeHistory.reward.map(
-          (r: string[]) => parseInt(r[0], 16) / 1e9
-        );
-        const latestBase = baseFees[baseFees.length - 1];
-        const avgTip =
-          tips.reduce((s: number, t: number) => s + t, 0) / tips.length;
-        const feeHistoryGwei = latestBase + avgTip;
-        avgGwei = Math.max(feeHistoryGwei, gasPriceGwei);
-      } catch {
-        // Use gasPrice fallback
-      }
+  const rpcs = [chain.rpcUrl, ...(chain.rpcFallbacks ?? [])];
+  for (const rpc of rpcs) {
+    try {
+      return await fetchGasFromRpc(rpc, chain.isEIP1559);
+    } catch {
+      // Try next RPC
     }
-
-    return avgGwei;
-  } catch {
-    return null;
   }
+  return null;
 }
 
 export interface ChainGasResult {

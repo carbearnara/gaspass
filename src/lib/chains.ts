@@ -3,6 +3,7 @@ export interface ChainConfig {
   name: string;
   chainId: number;
   rpcUrl: string;
+  rpcFallbacks?: string[];
   nativeToken: string;
   nativeTokenSymbol: string;
   explorerUrl: string;
@@ -101,6 +102,7 @@ export const chains: ChainConfig[] = [
     name: "Berachain",
     chainId: 80094,
     rpcUrl: "https://rpc.berachain.com",
+    rpcFallbacks: ["https://berachain-rpc.publicnode.com"],
     nativeToken: "berachain-bera",
     nativeTokenSymbol: "BERA",
     explorerUrl: "https://berascan.com",

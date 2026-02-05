@@ -202,15 +202,6 @@ export default function AllChainsSwapChart() {
   const chainIds = Object.keys(chainMapRef.current);
   const barHeight = Math.max(400, barData.length * 32);
 
-  if (loading) {
-    return (
-      <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-6">
-        <div className="h-5 bg-white/10 rounded w-48 mb-4 animate-pulse" />
-        <div className="h-96 bg-white/[0.03] rounded-xl animate-pulse" />
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-5 sm:p-6">
       {/* Header */}
@@ -240,7 +231,12 @@ export default function AllChainsSwapChart() {
 
       {/* Chart */}
       {view === "bar" ? (
-        <div style={{ height: barHeight }}>
+        <div style={{ height: barHeight }} className="relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/30 backdrop-blur-[1px] rounded-xl">
+              <p className="text-sm text-gray-400 animate-pulse">Loading gas prices...</p>
+            </div>
+          )}
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={barData} layout="vertical" margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="transparent" horizontal={false} />
@@ -268,10 +264,15 @@ export default function AllChainsSwapChart() {
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-96">
+        <div className="h-96 relative">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 bg-black/30 backdrop-blur-[1px] rounded-xl">
+              <p className="text-sm text-gray-400 animate-pulse">Loading gas prices...</p>
+            </div>
+          )}
           {history.length < 2 ? (
             <div className="h-full flex items-center justify-center text-gray-600 text-sm">
-              Collecting data... ({history.length}/2)
+              {loading ? "" : `Collecting data... (${history.length}/2)`}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
