@@ -211,6 +211,19 @@ export const chains: ChainConfig[] = [
     icon: "X",
     isEIP1559: true,
   },
+  {
+    id: "katana",
+    name: "Katana",
+    chainId: 747474,
+    rpcUrl: "https://rpc.katana.network",
+    rpcFallbacks: ["https://katana.drpc.org"],
+    nativeToken: "ethereum",
+    nativeTokenSymbol: "ETH",
+    explorerUrl: "https://katanascan.com",
+    color: "#9655FF",
+    icon: "K",
+    isEIP1559: true,
+  },
 ];
 
 export const SWAP_GAS_LIMIT = 184000;
