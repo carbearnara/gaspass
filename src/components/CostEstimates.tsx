@@ -1,22 +1,37 @@
 "use client";
 
 import { GasData } from "@/lib/types";
-import { COMMON_TRANSACTIONS } from "@/lib/chains";
+import { COMMON_TRANSACTIONS, SOLANA_COMMON_TRANSACTIONS, SOLANA_BASE_FEE_LAMPORTS } from "@/lib/chains";
 
 interface CostEstimatesProps {
   data: GasData | null;
   tokenPrice: number;
   tokenSymbol: string;
+  chainType?: string;
 }
 
-function cost(gasLimit: number, gweiPrice: number, tokenPrice: number): string {
-  const usd = ((gweiPrice * gasLimit) / 1e9) * tokenPrice;
+function formatUsd(usd: number): string {
   if (usd === 0) return "$0";
   if (usd < 0.000001) return `$${usd.toExponential(2)}`;
   if (usd < 0.0001) return `$${usd.toFixed(8)}`;
   if (usd < 0.01) return `$${usd.toFixed(6)}`;
   if (usd < 1) return `$${usd.toFixed(4)}`;
   return `$${usd.toFixed(2)}`;
+}
+
+function evmCost(gasLimit: number, gweiPrice: number, tokenPrice: number): string {
+  return formatUsd(((gweiPrice * gasLimit) / 1e9) * tokenPrice);
+}
+
+function solanaCost(
+  computeUnits: number,
+  signatures: number,
+  priorityFee: number,
+  tokenPrice: number
+): string {
+  const baseLamports = SOLANA_BASE_FEE_LAMPORTS * signatures;
+  const priorityLamports = (priorityFee * computeUnits) / 1e6;
+  return formatUsd(((baseLamports + priorityLamports) / 1e9) * tokenPrice);
 }
 
 const icons: Record<string, string> = {
@@ -30,7 +45,7 @@ const icons: Record<string, string> = {
   code: "\u{1F4BB}",
 };
 
-export default function CostEstimates({ data, tokenPrice, tokenSymbol }: CostEstimatesProps) {
+export default function CostEstimates({ data, tokenPrice, tokenSymbol, chainType }: CostEstimatesProps) {
   if (!data) {
     return (
       <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-5">
@@ -44,6 +59,8 @@ export default function CostEstimates({ data, tokenPrice, tokenSymbol }: CostEst
     );
   }
 
+  const isSolana = chainType === "solana";
+
   return (
     <div className="bg-white/[0.03] rounded-2xl border border-white/[0.06] p-5">
       <h3 className="text-sm font-semibold text-white mb-0.5">Cost Estimates</h3>
@@ -53,33 +70,54 @@ export default function CostEstimates({ data, tokenPrice, tokenSymbol }: CostEst
           <thead>
             <tr className="text-[10px] text-gray-600 uppercase tracking-wider">
               <th className="text-left pb-2 pl-1 font-medium">Action</th>
-              <th className="text-right pb-2 font-medium">Gas</th>
+              <th className="text-right pb-2 font-medium">{isSolana ? "CU" : "Gas"}</th>
               <th className="text-right pb-2 font-medium" style={{ color: "#34d399" }}>Low</th>
               <th className="text-right pb-2 font-medium" style={{ color: "#60a5fa" }}>Avg</th>
               <th className="text-right pb-2 pr-1 font-medium" style={{ color: "#fb923c" }}>High</th>
             </tr>
           </thead>
           <tbody>
-            {COMMON_TRANSACTIONS.map((tx, i) => (
-              <tr key={tx.name} className={i % 2 === 0 ? "bg-white/[0.015]" : ""}>
-                <td className="py-2 pl-1 text-gray-400">
-                  <span className="mr-1.5 opacity-60">{icons[tx.icon] || ""}</span>
-                  {tx.name}
-                </td>
-                <td className="py-2 text-gray-600 text-right font-mono">
-                  {tx.gasLimit >= 1000 ? `${(tx.gasLimit / 1000).toFixed(0)}K` : tx.gasLimit}
-                </td>
-                <td className="py-2 text-right font-mono" style={{ color: "#34d399" }}>
-                  {cost(tx.gasLimit, data.low, tokenPrice)}
-                </td>
-                <td className="py-2 text-right font-mono" style={{ color: "#60a5fa" }}>
-                  {cost(tx.gasLimit, data.average, tokenPrice)}
-                </td>
-                <td className="py-2 pr-1 text-right font-mono" style={{ color: "#fb923c" }}>
-                  {cost(tx.gasLimit, data.high, tokenPrice)}
-                </td>
-              </tr>
-            ))}
+            {isSolana
+              ? SOLANA_COMMON_TRANSACTIONS.map((tx, i) => (
+                  <tr key={tx.name} className={i % 2 === 0 ? "bg-white/[0.015]" : ""}>
+                    <td className="py-2 pl-1 text-gray-400">
+                      <span className="mr-1.5 opacity-60">{icons[tx.icon] || ""}</span>
+                      {tx.name}
+                    </td>
+                    <td className="py-2 text-gray-600 text-right font-mono">
+                      {tx.computeUnits >= 1000 ? `${(tx.computeUnits / 1000).toFixed(0)}K` : tx.computeUnits}
+                    </td>
+                    <td className="py-2 text-right font-mono" style={{ color: "#34d399" }}>
+                      {solanaCost(tx.computeUnits, tx.signatures, data.low, tokenPrice)}
+                    </td>
+                    <td className="py-2 text-right font-mono" style={{ color: "#60a5fa" }}>
+                      {solanaCost(tx.computeUnits, tx.signatures, data.average, tokenPrice)}
+                    </td>
+                    <td className="py-2 pr-1 text-right font-mono" style={{ color: "#fb923c" }}>
+                      {solanaCost(tx.computeUnits, tx.signatures, data.high, tokenPrice)}
+                    </td>
+                  </tr>
+                ))
+              : COMMON_TRANSACTIONS.map((tx, i) => (
+                  <tr key={tx.name} className={i % 2 === 0 ? "bg-white/[0.015]" : ""}>
+                    <td className="py-2 pl-1 text-gray-400">
+                      <span className="mr-1.5 opacity-60">{icons[tx.icon] || ""}</span>
+                      {tx.name}
+                    </td>
+                    <td className="py-2 text-gray-600 text-right font-mono">
+                      {tx.gasLimit >= 1000 ? `${(tx.gasLimit / 1000).toFixed(0)}K` : tx.gasLimit}
+                    </td>
+                    <td className="py-2 text-right font-mono" style={{ color: "#34d399" }}>
+                      {evmCost(tx.gasLimit, data.low, tokenPrice)}
+                    </td>
+                    <td className="py-2 text-right font-mono" style={{ color: "#60a5fa" }}>
+                      {evmCost(tx.gasLimit, data.average, tokenPrice)}
+                    </td>
+                    <td className="py-2 pr-1 text-right font-mono" style={{ color: "#fb923c" }}>
+                      {evmCost(tx.gasLimit, data.high, tokenPrice)}
+                    </td>
+                  </tr>
+                ))}
           </tbody>
         </table>
       </div>

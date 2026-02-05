@@ -1,12 +1,14 @@
 "use client";
 
 import { GasData } from "@/lib/types";
+import { SOLANA_BASE_FEE_LAMPORTS } from "@/lib/chains";
 
 interface GasTiersProps {
   data: GasData | null;
   tokenPrice: number;
   tokenSymbol: string;
   chainColor: string;
+  chainType?: string;
 }
 
 function formatGwei(gwei: number): string {
@@ -28,28 +30,32 @@ function formatUsdSmart(usd: number): string {
   return `$${usd.toFixed(2)}`;
 }
 
-function estimateUsd(gweiPrice: number, tokenPrice: number): string {
-  const ethCost = (gweiPrice * 21000) / 1e9;
-  const usd = ethCost * tokenPrice;
+function estimateUsd(feeValue: number, tokenPrice: number, chainType?: string): string {
+  let usd: number;
+  if (chainType === "solana") {
+    // SOL transfer: 1 sig base fee + priority fee * ~450 CU
+    const baseLamports = SOLANA_BASE_FEE_LAMPORTS;
+    const priorityLamports = (feeValue * 450) / 1e6;
+    usd = ((baseLamports + priorityLamports) / 1e9) * tokenPrice;
+  } else {
+    usd = ((feeValue * 21000) / 1e9) * tokenPrice;
+  }
   return formatUsdSmart(usd);
 }
 
-const tierStyles = {
-  low: {
-    label: "Low", speed: "~5 min",
-    border: "#10b98133", bg: "#10b9810f", accent: "#34d399",
-  },
-  average: {
-    label: "Average", speed: "~30 sec",
-    border: "#3b82f633", bg: "#3b82f60f", accent: "#60a5fa",
-  },
-  high: {
-    label: "High", speed: "~15 sec",
-    border: "#f9731633", bg: "#f973160f", accent: "#fb923c",
-  },
+const evmTierStyles = {
+  low: { label: "Low", speed: "~5 min", border: "#10b98133", bg: "#10b9810f", accent: "#34d399" },
+  average: { label: "Average", speed: "~30 sec", border: "#3b82f633", bg: "#3b82f60f", accent: "#60a5fa" },
+  high: { label: "High", speed: "~15 sec", border: "#f9731633", bg: "#f973160f", accent: "#fb923c" },
 };
 
-export default function GasTiers({ data, tokenPrice, tokenSymbol }: GasTiersProps) {
+const solanaTierStyles = {
+  low: { label: "Low", speed: "~2s", border: "#10b98133", bg: "#10b9810f", accent: "#34d399" },
+  average: { label: "Average", speed: "~400ms", border: "#3b82f633", bg: "#3b82f60f", accent: "#60a5fa" },
+  high: { label: "High", speed: "~400ms", border: "#f9731633", bg: "#f973160f", accent: "#fb923c" },
+};
+
+export default function GasTiers({ data, tokenPrice, tokenSymbol, chainType }: GasTiersProps) {
   if (!data) {
     return (
       <div className="grid grid-cols-3 gap-3">
@@ -64,6 +70,9 @@ export default function GasTiers({ data, tokenPrice, tokenSymbol }: GasTiersProp
     );
   }
 
+  const isSolana = chainType === "solana";
+  const tierStyles = isSolana ? solanaTierStyles : evmTierStyles;
+  const unitLabel = isSolana ? "μL/CU" : "Gwei";
   const values = { low: data.low, average: data.average, high: data.high };
 
   return (
@@ -88,14 +97,18 @@ export default function GasTiers({ data, tokenPrice, tokenSymbol }: GasTiersProp
             </div>
             <div className="text-2xl font-bold text-white leading-none mb-1">
               {formatGwei(value)}
-              <span className="text-[11px] font-normal text-gray-500 ml-1.5">Gwei</span>
+              <span className="text-[11px] font-normal text-gray-500 ml-1.5">{unitLabel}</span>
             </div>
             <div className="text-xs text-gray-500">
-              {estimateUsd(value, tokenPrice)} / transfer
+              {estimateUsd(value, tokenPrice, chainType)} / transfer
             </div>
-            {data.baseFee !== null && key === "average" && (
+            {key === "average" && (
               <div className="mt-2.5 pt-2.5 border-t border-white/5 text-[10px] text-gray-600">
-                Base: {formatGwei(data.baseFee)} Gwei ({tokenSymbol})
+                {isSolana
+                  ? `Base: ${SOLANA_BASE_FEE_LAMPORTS.toLocaleString()} lamports/sig`
+                  : data.baseFee !== null
+                  ? `Base: ${formatGwei(data.baseFee)} Gwei (${tokenSymbol})`
+                  : null}
               </div>
             )}
           </div>

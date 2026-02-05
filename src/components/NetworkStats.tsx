@@ -15,6 +15,13 @@ function formatNumber(n: number): string {
   return n.toLocaleString();
 }
 
+function formatFee(v: number): string {
+  if (v === 0) return "0";
+  if (v < 0.01) return v.toFixed(6);
+  if (v < 1) return v.toFixed(4);
+  return v.toLocaleString();
+}
+
 export default function NetworkStats({ data, chain }: NetworkStatsProps) {
   if (!data) {
     return (
@@ -29,12 +36,21 @@ export default function NetworkStats({ data, chain }: NetworkStatsProps) {
     );
   }
 
-  const stats = [
-    { label: "Block", value: `#${data.blockNumber.toLocaleString()}`, link: `${chain.explorerUrl}/block/${data.blockNumber}` },
-    { label: "Txns", value: data.networkStats.txCount.toString() },
-    { label: "Gas Used", value: formatNumber(data.networkStats.gasUsed) },
-    { label: "Utilization", value: `${data.networkStats.utilization.toFixed(1)}%` },
-  ];
+  const isSolana = chain.chainType === "solana";
+
+  const stats = isSolana
+    ? [
+        { label: "Slot", value: `#${data.blockNumber.toLocaleString()}`, link: `${chain.explorerUrl}/block/${data.blockNumber}` },
+        { label: "TPS", value: data.networkStats.txCount.toLocaleString() },
+        { label: "Base Fee", value: "5,000 lamports" },
+        { label: "Priority", value: `${formatFee(data.average)} μL/CU` },
+      ]
+    : [
+        { label: "Block", value: `#${data.blockNumber.toLocaleString()}`, link: `${chain.explorerUrl}/block/${data.blockNumber}` },
+        { label: "Txns", value: data.networkStats.txCount.toString() },
+        { label: "Gas Used", value: formatNumber(data.networkStats.gasUsed) },
+        { label: "Utilization", value: `${data.networkStats.utilization.toFixed(1)}%` },
+      ];
 
   return (
     <div className="grid grid-cols-4 gap-3">

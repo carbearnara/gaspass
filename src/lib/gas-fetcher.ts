@@ -1,4 +1,4 @@
-import { chains, SWAP_GAS_LIMIT } from "@/lib/chains";
+import { chains, SWAP_GAS_LIMIT, SOLANA_BASE_FEE_LAMPORTS } from "@/lib/chains";
 
 export async function rpcCall(
   rpcUrl: string,
@@ -32,6 +32,7 @@ const FALLBACK_PRICES: Record<string, number> = {
   xdai: 1.0,
   mantle: 0.75,
   celo: 0.5,
+  solana: 150,
 };
 
 // Batched price cache
@@ -101,13 +102,33 @@ async function fetchGasFromRpc(
   return avgGwei;
 }
 
+async function fetchSolanaGas(rpcUrl: string): Promise<number> {
+  const fees: Array<{ slot: number; prioritizationFee: number }> =
+    await rpcCall(rpcUrl, "getRecentPrioritizationFees", [[]]);
+
+  if (!fees || fees.length === 0) return 0;
+
+  const nonZero = fees
+    .map((f) => f.prioritizationFee)
+    .filter((f) => f > 0)
+    .sort((a, b) => a - b);
+
+  if (nonZero.length === 0) return 0;
+
+  // Return median as the "average" priority fee in micro-lamports per CU
+  return nonZero[Math.floor(nonZero.length / 2)];
+}
+
 export async function getChainGasGwei(
   chain: (typeof chains)[number]
 ): Promise<number | null> {
   const rpcs = [chain.rpcUrl, ...(chain.rpcFallbacks ?? [])];
   for (const rpc of rpcs) {
     try {
-      return await fetchGasFromRpc(rpc, chain.isEIP1559);
+      if (chain.chainType === "solana") {
+        return await fetchSolanaGas(rpc);
+      }
+      return await fetchGasFromRpc(rpc, chain.isEIP1559 ?? true);
     } catch {
       // Try next RPC
     }
@@ -123,6 +144,7 @@ export interface ChainGasResult {
   swapCostUsd: number;
   tokenPrice: number;
   nativeTokenSymbol: string;
+  chainType?: string;
 }
 
 export async function fetchAllChainsGas(): Promise<{
@@ -140,8 +162,19 @@ export async function fetchAllChainsGas(): Promise<{
       if (avgGwei === null) return null;
 
       const tokenPrice = prices[chain.nativeToken] ?? 0;
-      const swapCostToken = (avgGwei * SWAP_GAS_LIMIT) / 1e9;
-      const swapCostUsd = swapCostToken * tokenPrice;
+      let swapCostUsd: number;
+
+      if (chain.chainType === "solana") {
+        const sigs = chain.signaturesPerSwap ?? 1;
+        const cu = chain.computeUnitsPerSwap ?? 300000;
+        const baseLamports = SOLANA_BASE_FEE_LAMPORTS * sigs;
+        const priorityLamports = (avgGwei * cu) / 1e6;
+        const totalSol = (baseLamports + priorityLamports) / 1e9;
+        swapCostUsd = totalSol * tokenPrice;
+      } else {
+        const swapCostToken = (avgGwei * SWAP_GAS_LIMIT) / 1e9;
+        swapCostUsd = swapCostToken * tokenPrice;
+      }
 
       return {
         chain: chain.id,
@@ -151,9 +184,10 @@ export async function fetchAllChainsGas(): Promise<{
         swapCostUsd: Math.max(swapCostUsd, 0),
         tokenPrice,
         nativeTokenSymbol: chain.nativeTokenSymbol,
+        chainType: chain.chainType as string | undefined,
       };
     })
-    .filter((c): c is ChainGasResult => c !== null);
+    .filter((c) => c !== null) as ChainGasResult[];
 
   return {
     timestamp: Date.now(),

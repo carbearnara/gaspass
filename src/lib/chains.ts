@@ -1,7 +1,7 @@
 export interface ChainConfig {
   id: string;
   name: string;
-  chainId: number;
+  chainId?: number;
   rpcUrl: string;
   rpcFallbacks?: string[];
   nativeToken: string;
@@ -9,7 +9,10 @@ export interface ChainConfig {
   explorerUrl: string;
   color: string;
   icon: string;
-  isEIP1559: boolean;
+  isEIP1559?: boolean;
+  chainType?: "evm" | "solana";
+  computeUnitsPerSwap?: number;
+  signaturesPerSwap?: number;
 }
 
 export const chains: ChainConfig[] = [
@@ -24,6 +27,20 @@ export const chains: ChainConfig[] = [
     color: "#627EEA",
     icon: "E",
     isEIP1559: true,
+  },
+  {
+    id: "solana",
+    name: "Solana",
+    chainType: "solana",
+    rpcUrl: "https://api.mainnet-beta.solana.com",
+    rpcFallbacks: ["https://solana-rpc.publicnode.com"],
+    nativeToken: "solana",
+    nativeTokenSymbol: "SOL",
+    explorerUrl: "https://solscan.io",
+    color: "#9945FF",
+    icon: "$",
+    computeUnitsPerSwap: 300000,
+    signaturesPerSwap: 1,
   },
   {
     id: "polygon",
@@ -197,6 +214,7 @@ export const chains: ChainConfig[] = [
 ];
 
 export const SWAP_GAS_LIMIT = 184000;
+export const SOLANA_BASE_FEE_LAMPORTS = 5000;
 
 export const COMMON_TRANSACTIONS = [
   { name: "ETH Transfer", gasLimit: 21000, icon: "arrow-right" },
@@ -207,4 +225,12 @@ export const COMMON_TRANSACTIONS = [
   { name: "NFT Mint", gasLimit: 150000, icon: "plus" },
   { name: "Bridge Deposit", gasLimit: 250000, icon: "bridge" },
   { name: "Contract Deploy", gasLimit: 1500000, icon: "code" },
+];
+
+export const SOLANA_COMMON_TRANSACTIONS = [
+  { name: "SOL Transfer", computeUnits: 450, signatures: 1, icon: "arrow-right" },
+  { name: "SPL Token Transfer", computeUnits: 50000, signatures: 1, icon: "coin" },
+  { name: "Jupiter Swap", computeUnits: 300000, signatures: 1, icon: "swap" },
+  { name: "NFT Transfer", computeUnits: 100000, signatures: 1, icon: "image" },
+  { name: "NFT Mint", computeUnits: 200000, signatures: 1, icon: "plus" },
 ];

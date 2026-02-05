@@ -22,6 +22,7 @@ interface ChainGasEntry {
   swapCostUsd: number;
   tokenPrice: number;
   nativeTokenSymbol: string;
+  chainType?: string;
 }
 
 interface AllChainsResponse {
@@ -73,7 +74,7 @@ function BarTooltip({ active, payload }: { active?: boolean; payload?: BarPayloa
         {formatUsd(d.swapCostUsd)}
       </div>
       <div className="text-gray-500 text-xs mt-1">
-        {d.avgGwei < 0.01 ? d.avgGwei.toFixed(6) : d.avgGwei.toFixed(2)} Gwei &middot; {d.nativeTokenSymbol} @ ${d.tokenPrice.toFixed(2)}
+        {d.avgGwei < 0.01 ? d.avgGwei.toFixed(6) : d.avgGwei.toFixed(2)} {d.chainType === "solana" ? "μL/CU" : "Gwei"} &middot; {d.nativeTokenSymbol} @ ${d.tokenPrice.toFixed(2)}
       </div>
     </div>
   );
@@ -109,6 +110,7 @@ export default function AllChainsSwapChart() {
   const [latestData, setLatestData] = useState<ChainGasEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"bar" | "line">("bar");
+  const [axisScale, setAxisScale] = useState<"log" | "linear">("log");
   const historyRef = useRef<HistoryPoint[]>([]);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const chainColorsRef = useRef<Record<string, string>>({});
@@ -211,21 +213,36 @@ export default function AllChainsSwapChart() {
             Swap Fee Comparison
           </h3>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            Uniswap-style swap (184K gas) in USD &middot; log scale
+            DEX swap cost in USD &middot; {axisScale} scale
           </p>
         </div>
-        <div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
-          {(["bar", "line"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                view === v ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
-              }`}
-            >
-              {v === "bar" ? "Current" : "Over Time"}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
+            {(["log", "linear"] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setAxisScale(s)}
+                className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                  axisScale === s ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {s === "log" ? "Log" : "Linear"}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
+            {(["bar", "line"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  view === v ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {v === "bar" ? "Current" : "Over Time"}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -242,8 +259,8 @@ export default function AllChainsSwapChart() {
               <CartesianGrid strokeDasharray="3 3" stroke="transparent" horizontal={false} />
               <XAxis
                 type="number"
-                scale="log"
-                domain={[barDomainMin, "auto"]}
+                scale={axisScale}
+                domain={axisScale === "log" ? [barDomainMin, "auto"] : [0, "auto"]}
                 allowDataOverflow
                 tick={{ fill: "#6b7280", fontSize: 10 }}
                 tickLine={false}
@@ -285,8 +302,8 @@ export default function AllChainsSwapChart() {
                   axisLine={false}
                 />
                 <YAxis
-                  scale="log"
-                  domain={["auto", "auto"]}
+                  scale={axisScale}
+                  domain={axisScale === "log" ? ["auto", "auto"] : [0, "auto"]}
                   allowDataOverflow
                   tick={{ fill: "#6b7280", fontSize: 10 }}
                   tickLine={false}

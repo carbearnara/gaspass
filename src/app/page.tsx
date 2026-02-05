@@ -121,7 +121,7 @@ export default function Home() {
             <span style={{ color: chain.color }}>Gas</span>Pass
           </h1>
           <p className="text-xs text-gray-600 mt-1">
-            Real-time EVM gas tracker
+            Real-time gas tracker
           </p>
         </div>
         <div className="flex items-center gap-3 text-xs text-gray-500">
@@ -175,6 +175,7 @@ export default function Home() {
             tokenPrice={tokenPrice}
             tokenSymbol={chain.nativeTokenSymbol}
             chainColor={chain.color}
+            chainType={chain.chainType}
           />
         </div>
 
@@ -183,11 +184,12 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <GasChart history={history} chainColor={chain.color} />
+          <GasChart history={history} chainColor={chain.color} chainType={chain.chainType} />
           <CostEstimates
             data={gasData}
             tokenPrice={tokenPrice}
             tokenSymbol={chain.nativeTokenSymbol}
+            chainType={chain.chainType}
           />
         </div>
       </section>

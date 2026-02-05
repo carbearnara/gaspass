@@ -9,6 +9,7 @@ const FALLBACK_PRICES: Record<string, number> = {
   xdai: 1.0,
   mantle: 0.75,
   celo: 0.5,
+  solana: 150,
 };
 
 const priceCache: Record<string, { price: number; timestamp: number }> = {};

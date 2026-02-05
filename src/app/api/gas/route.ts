@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chains } from "@/lib/chains";
+import { chains, ChainConfig, SOLANA_BASE_FEE_LAMPORTS } from "@/lib/chains";
 
 interface FeeHistory {
   baseFeePerGas: string[];
@@ -31,6 +31,53 @@ async function rpcCall(rpcUrl: string, method: string, params: unknown[] = []) {
   }
 }
 
+function percentile(arr: number[], p: number): number {
+  if (arr.length === 0) return 0;
+  const idx = Math.floor(arr.length * p);
+  return arr[Math.min(idx, arr.length - 1)];
+}
+
+async function handleSolanaGas(chain: ChainConfig) {
+  const [fees, currentSlot] = await Promise.all([
+    rpcCall(chain.rpcUrl, "getRecentPrioritizationFees", [[]]),
+    rpcCall(chain.rpcUrl, "getSlot"),
+  ]);
+
+  const feeValues = (fees as Array<{ slot: number; prioritizationFee: number }>)
+    .map((f) => f.prioritizationFee)
+    .sort((a, b) => a - b);
+
+  const low = percentile(feeValues, 0.25);
+  const average = percentile(feeValues, 0.5);
+  const high = percentile(feeValues, 0.75);
+
+  let tps = 0;
+  try {
+    const perfSamples = await rpcCall(chain.rpcUrl, "getRecentPerformanceSamples", [1]);
+    if (perfSamples?.length > 0) {
+      tps = Math.round(perfSamples[0].numTransactions / perfSamples[0].samplePeriodSecs);
+    }
+  } catch {
+    // TPS unavailable
+  }
+
+  return NextResponse.json({
+    chain: chain.id,
+    blockNumber: currentSlot as number,
+    low,
+    average,
+    high,
+    baseFee: SOLANA_BASE_FEE_LAMPORTS,
+    timestamp: Date.now(),
+    networkStats: {
+      txCount: tps,
+      gasUsed: 0,
+      gasLimit: 0,
+      utilization: 0,
+    },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const chainId = request.nextUrl.searchParams.get("chain") || "ethereum";
   const chain = chains.find((c) => c.id === chainId);
@@ -40,13 +87,17 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (chain.chainType === "solana") {
+      return await handleSolanaGas(chain);
+    }
+
     const [blockHex, gasPrice] = await Promise.all([
       rpcCall(chain.rpcUrl, "eth_blockNumber"),
       rpcCall(chain.rpcUrl, "eth_gasPrice"),
     ]);
 
     const blockNumber = parseInt(blockHex, 16);
-    const currentGasPrice = parseInt(gasPrice, 16) / 1e9; // Convert to Gwei
+    const currentGasPrice = parseInt(gasPrice, 16) / 1e9;
 
     let low: number, average: number, high: number;
     let baseFee: number | null = null;
@@ -97,9 +148,9 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
           chain: chain.id,
           blockNumber,
-          low: low,
-          average: average,
-          high: high,
+          low,
+          average,
+          high,
           baseFee,
           timestamp: Date.now(),
           networkStats: {
@@ -114,7 +165,6 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Fallback: estimate tiers from gasPrice
     low = currentGasPrice * 0.85;
     average = currentGasPrice;
     high = currentGasPrice * 1.15;
@@ -130,9 +180,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       chain: chain.id,
       blockNumber,
-      low: low,
-      average: average,
-      high: high,
+      low,
+      average,
+      high,
       baseFee,
       timestamp: Date.now(),
       networkStats: {
