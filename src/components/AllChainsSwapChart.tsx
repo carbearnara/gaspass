@@ -138,7 +138,7 @@ export default function AllChainsSwapChart() {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"bar" | "line">("bar");
   const [axisScale, setAxisScale] = useState<"log" | "linear">("log");
-  const [metric, setMetric] = useState<Metric>("cost");
+  const [metric, setMetric] = useState<Metric>("perDollar");
   const historyRef = useRef<HistoryPoint[]>([]);
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const chainColorsRef = useRef<Record<string, string>>({});
