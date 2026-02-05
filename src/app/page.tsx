@@ -25,6 +25,35 @@ export default function Home() {
 
   const chain = chains.find((c) => c.id === selectedChain)!;
 
+  // Load per-chain historical data from DB when chain changes
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/history?chain=${selectedChain}&hours=6`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.points?.length > 0) {
+          const points: GasHistoryPoint[] = data.points.map(
+            (p: { timestamp: number; low: number; average: number; high: number }) => {
+              const date = new Date(p.timestamp);
+              return {
+                time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+                timestamp: p.timestamp,
+                low: p.low,
+                average: p.average,
+                high: p.high,
+              };
+            }
+          );
+          historyRef.current[selectedChain] = points.slice(-MAX_HISTORY);
+          setHistory([...historyRef.current[selectedChain]]);
+        }
+      } catch {
+        // silent — will build from live data
+      }
+    })();
+  }, [selectedChain]);
+
   const fetchGasData = useCallback(async () => {
     try {
       const [gasRes, priceRes] = await Promise.all([

@@ -164,7 +164,7 @@ export const chains: ChainConfig[] = [
     nativeToken: "mantle",
     nativeTokenSymbol: "MNT",
     explorerUrl: "https://mantlescan.xyz",
-    color: "#000000",
+    color: "#2FF2A3",
     icon: "M",
     isEIP1559: true,
   },

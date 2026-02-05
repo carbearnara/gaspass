@@ -113,6 +113,39 @@ export default function AllChainsSwapChart() {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const chainColorsRef = useRef<Record<string, string>>({});
 
+  // Load historical data from DB on mount
+  const historyLoaded = useRef(false);
+  useEffect(() => {
+    if (historyLoaded.current) return;
+    historyLoaded.current = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/history?chain=all&hours=24");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.points?.length > 0) {
+          const points: HistoryPoint[] = data.points.map(
+            (p: { timestamp: number; chains: Record<string, number> }) => {
+              const date = new Date(p.timestamp);
+              const point: HistoryPoint = {
+                time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+                timestamp: p.timestamp,
+              };
+              for (const [chainId, cost] of Object.entries(p.chains)) {
+                point[chainId] = Math.max(cost, 1e-12);
+              }
+              return point;
+            }
+          );
+          historyRef.current = points.slice(-MAX_HISTORY);
+          setHistory([...historyRef.current]);
+        }
+      } catch {
+        // silent — will build history from live data
+      }
+    })();
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch("/api/gas-all");
@@ -151,6 +184,12 @@ export default function AllChainsSwapChart() {
   const barData = [...latestData]
     .sort((a, b) => b.swapCostUsd - a.swapCostUsd)
     .map((c) => ({ ...c, swapCostUsd: Math.max(c.swapCostUsd, 1e-12), fill: c.color }));
+
+  // Set domain floor 100x below smallest value so every bar is visible on log scale
+  const minSwap = barData.length > 0
+    ? Math.min(...barData.map((c) => c.swapCostUsd))
+    : 1e-12;
+  const barDomainMin = minSwap / 100;
 
   const chainIds = latestData.map((c) => c.chain);
   const barHeight = Math.max(400, barData.length * 32);
@@ -200,7 +239,7 @@ export default function AllChainsSwapChart() {
               <XAxis
                 type="number"
                 scale="log"
-                domain={["auto", "auto"]}
+                domain={[barDomainMin, "auto"]}
                 allowDataOverflow
                 tick={{ fill: "#6b7280", fontSize: 10 }}
                 tickLine={false}
