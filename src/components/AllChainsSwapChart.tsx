@@ -290,7 +290,7 @@ export default function AllChainsSwapChart() {
                   metric === m ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
                 }`}
               >
-                {m === "cost" ? "Cost" : "Swaps/$1"}
+                {m === "cost" ? "Cost/Swap" : "Swaps/$1"}
               </button>
             ))}
           </div>
