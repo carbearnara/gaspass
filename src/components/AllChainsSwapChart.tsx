@@ -282,7 +282,7 @@ export default function AllChainsSwapChart() {
         </div>
         <div className="flex items-center gap-2">
           <div className="flex gap-0.5 bg-white/[0.04] rounded-lg p-0.5">
-            {(["cost", "perDollar"] as const).map((m) => (
+            {(["perDollar", "cost"] as const).map((m) => (
               <button
                 key={m}
                 onClick={() => setMetric(m)}
