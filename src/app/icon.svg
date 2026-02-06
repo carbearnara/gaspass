@@ -1,5 +1,3 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="8" fill="#0e0e10"/>
-  <text x="16" y="22" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="16" fill="#627EEA">G</text>
-  <circle cx="24" cy="8" r="3" fill="#34d399"/>
+  <text x="16" y="26" text-anchor="middle" font-size="28">&#x26FD;</text>
 </svg>
