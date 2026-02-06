@@ -24,12 +24,19 @@ interface PayloadEntry {
   color: string;
 }
 
+function formatTimeTick(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 function makeTooltip(unitLabel: string) {
-  return function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: PayloadEntry[]; label?: string }) {
+  return function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: PayloadEntry[]; label?: number }) {
     if (!active || !payload?.length) return null;
+    const timeStr = typeof label === "number"
+      ? new Date(label).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      : label;
     return (
       <div className="bg-gray-950/95 backdrop-blur border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl">
-        <p className="text-[11px] text-gray-500 mb-1.5">{label}</p>
+        <p className="text-[11px] text-gray-500 mb-1.5">{timeStr}</p>
         {payload.map((entry) => (
           <div key={entry.name} className="flex items-center gap-2 text-xs py-px">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: entry.color }} />
@@ -110,7 +117,11 @@ export default function GasChart({ history, chainColor, chainType }: GasChartPro
             </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
             <XAxis
-              dataKey="time"
+              dataKey="timestamp"
+              type="number"
+              scale="time"
+              domain={["auto", "auto"]}
+              tickFormatter={formatTimeTick}
               tick={{ fill: "#6b7280", fontSize: 10 }}
               tickLine={false}
               axisLine={false}

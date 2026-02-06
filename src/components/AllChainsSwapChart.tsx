@@ -111,14 +111,21 @@ interface LinePayloadEntry {
   dataKey: string;
 }
 
+function formatTimeTick(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 function makeLineTooltip(metric: Metric) {
-  return function LineTooltipContent({ active, payload, label }: { active?: boolean; payload?: LinePayloadEntry[]; label?: string }) {
+  return function LineTooltipContent({ active, payload, label }: { active?: boolean; payload?: LinePayloadEntry[]; label?: number }) {
     if (!active || !payload?.length) return null;
     const sorted = [...payload].sort((a, b) => (b.value || 0) - (a.value || 0));
     const perDollar = metric === "perDollar";
+    const timeStr = typeof label === "number"
+      ? new Date(label).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+      : label;
     return (
       <div className="bg-gray-950/95 backdrop-blur border border-white/10 rounded-lg px-3 py-2.5 shadow-2xl text-xs max-h-72 overflow-y-auto">
-        <p className="text-gray-500 mb-2 text-[11px]">{label}</p>
+        <p className="text-gray-500 mb-2 text-[11px]">{timeStr}</p>
         {sorted.map((entry) => (
           <div key={entry.dataKey} className="flex items-center gap-2 py-px">
             <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
@@ -373,7 +380,11 @@ export default function AllChainsSwapChart() {
               <LineChart data={displayHistory} margin={{ left: 4, right: 12, top: 4, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
                 <XAxis
-                  dataKey="time"
+                  dataKey="timestamp"
+                  type="number"
+                  scale="time"
+                  domain={["auto", "auto"]}
+                  tickFormatter={formatTimeTick}
                   tick={{ fill: "#6b7280", fontSize: 10 }}
                   tickLine={false}
                   axisLine={false}
