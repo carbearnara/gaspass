@@ -1,0 +1,15 @@
+name: Collect Gas Data
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping collect endpoint
+        run: |
+          response=$(curl -sf "https://gaspass-iota.vercel.app/api/collect?key=${{ secrets.CRON_SECRET }}")
+          echo "$response"
