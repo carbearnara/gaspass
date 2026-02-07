@@ -118,7 +118,7 @@ export default function Home() {
       <header className="flex items-end justify-between mb-10">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            <span style={{ color: chain.color }}>Gas</span>Pass
+            Mind The <span style={{ color: chain.color }}>Gas</span>
           </h1>
           <p className="text-xs text-gray-600 mt-1">
             Real-time gas tracker
@@ -196,7 +196,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="text-center text-[11px] text-gray-600 mt-12 pt-6 border-t border-white/5">
-        GasPass &middot; Public RPCs &middot; CoinGecko prices &middot; Refreshes every {REFRESH_INTERVAL / 1000}s
+        Mind The Gas &middot; Public RPCs &middot; CoinGecko prices &middot; Refreshes every {REFRESH_INTERVAL / 1000}s
       </footer>
     </main>
   );
