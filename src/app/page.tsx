@@ -124,7 +124,7 @@ export default function Home() {
             <rect x="0" y="62" width="200" height="36" fill="#003688" />
             <text x="100" y="87" textAnchor="middle" fill="white" fontFamily="system-ui, sans-serif" fontWeight="700" fontSize="22" letterSpacing="2">MIND THE GAS</text>
           </svg>
-          <p className="text-xs text-gray-600 hidden sm:block">
+          <p className="text-xs text-gray-400 hidden sm:block">
             Real-time gas tracker
           </p>
         </div>
@@ -199,7 +199,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="text-center text-[11px] text-gray-600 mt-12 pt-6 border-t border-white/5">
+      <footer className="text-center text-[11px] text-gray-400 mt-12 pt-6 border-t border-white/5">
         Mind The Gas &middot; Public RPCs &middot; CoinGecko prices &middot; Refreshes every {REFRESH_INTERVAL / 1000}s
       </footer>
     </main>
