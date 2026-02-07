@@ -115,12 +115,16 @@ export default function Home() {
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
       {/* Header */}
-      <header className="flex items-end justify-between mb-10">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Mind The <span style={{ color: chain.color }}>Gas</span>
-          </h1>
-          <p className="text-xs text-gray-600 mt-1">
+      <header className="flex items-center justify-between mb-10">
+        <div className="flex items-center gap-4">
+          {/* London Underground roundel logo */}
+          <svg viewBox="0 0 200 160" className="h-14 sm:h-16 w-auto shrink-0" aria-label="Mind The Gas">
+            <circle cx="100" cy="80" r="68" fill="#E1251B" />
+            <circle cx="100" cy="80" r="44" fill="#0e0e10" />
+            <rect x="0" y="62" width="200" height="36" fill="#003688" />
+            <text x="100" y="87" textAnchor="middle" fill="white" fontFamily="system-ui, sans-serif" fontWeight="700" fontSize="22" letterSpacing="2">MIND THE GAS</text>
+          </svg>
+          <p className="text-xs text-gray-600 hidden sm:block">
             Real-time gas tracker
           </p>
         </div>
