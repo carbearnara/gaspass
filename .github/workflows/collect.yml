@@ -11,5 +11,5 @@ jobs:
     steps:
       - name: Ping collect endpoint
         run: |
-          response=$(curl -sf "https://gaspass-iota.vercel.app/api/collect?key=${{ secrets.CRON_SECRET }}")
+          response=$(curl -sf "https://mindthegas.vercel.app/api/collect?key=${{ secrets.CRON_SECRET }}")
           echo "$response"
