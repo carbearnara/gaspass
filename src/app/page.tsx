@@ -199,8 +199,9 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="text-center text-[11px] text-gray-400 mt-12 pt-6 border-t border-white/5">
-        Mind The Gas &middot; Public RPCs &middot; CoinGecko prices &middot; Refreshes every {REFRESH_INTERVAL / 1000}s
+      <footer className="text-center text-[11px] text-gray-400 mt-12 pt-6 border-t border-white/5 space-y-1.5">
+        <div>Mind The Gas &middot; Public RPCs &middot; CoinGecko prices &middot; Refreshes every {REFRESH_INTERVAL / 1000}s</div>
+        <div>Made with love by <a href="https://x.com/0xcarnation" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-white underline">0xcarnation</a>. Powered by Claude.</div>
       </footer>
     </main>
   );
