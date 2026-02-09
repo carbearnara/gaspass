@@ -323,7 +323,7 @@ export default function AllChainsSwapChart() {
                   view === v ? "bg-white/10 text-white" : "text-gray-500 hover:text-gray-300"
                 }`}
               >
-                {v === "bar" ? "Current" : "Over Time"}
+                {v === "bar" ? "Current" : "Historical"}
               </button>
             ))}
           </div>
